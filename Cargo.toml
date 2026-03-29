@@ -33,3 +33,7 @@ harness = false
 [[bench]]
 name = "text_splitter"
 harness = false
+
+[[bench]]
+name = "multi_pattern"
+harness = false
