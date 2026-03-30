@@ -74,14 +74,14 @@ function toBytes(input) {
 export function* chunk(text, options = {}) {
     const isString = typeof text === 'string';
     const bytes = toBytes(text);
-    const { size, delimiters, pattern, prefix, consecutive, forwardFallback } = options;
+    const { size, delimiters, pattern, patterns, prefix, consecutive, forwardFallback } = options;
 
     let flat;
     if (pattern) {
         const patternBytes = toBytes(pattern);
         flat = wasmChunkOffsetsPattern(bytes, size ?? 4096, patternBytes, prefix, consecutive, forwardFallback);
     } else {
-        flat = wasmChunkOffsets(bytes, size, delimiters, prefix);
+        flat = wasmChunkOffsets(bytes, size, delimiters, prefix, consecutive, forwardFallback, patterns);
     }
 
     for (let i = 0; i < flat.length; i += 2) {
@@ -99,6 +99,7 @@ export function* chunk(text, options = {}) {
  * @param {number} [options.size=4096] - Target chunk size in bytes
  * @param {string} [options.delimiters="\n.?"] - Delimiter characters
  * @param {string | Uint8Array} [options.pattern] - Multi-byte pattern to split on
+ * @param {string[]} [options.patterns] - Multi-byte patterns, composable with delimiters
  * @param {boolean} [options.prefix=false] - Put delimiter/pattern at start of next chunk
  * @param {boolean} [options.consecutive=false] - Split at START of consecutive runs
  * @param {boolean} [options.forwardFallback=false] - Search forward if no pattern in backward window
@@ -106,14 +107,14 @@ export function* chunk(text, options = {}) {
  */
 export function chunk_offsets(text, options = {}) {
     const bytes = toBytes(text);
-    const { size, delimiters, pattern, prefix, consecutive, forwardFallback } = options;
+    const { size, delimiters, pattern, patterns, prefix, consecutive, forwardFallback } = options;
 
     let flat;
     if (pattern) {
         const patternBytes = toBytes(pattern);
         flat = wasmChunkOffsetsPattern(bytes, size ?? 4096, patternBytes, prefix, consecutive, forwardFallback);
     } else {
-        flat = wasmChunkOffsets(bytes, size, delimiters, prefix);
+        flat = wasmChunkOffsets(bytes, size, delimiters, prefix, consecutive, forwardFallback, patterns);
     }
 
     const pairs = [];
@@ -275,6 +276,7 @@ export class Chunker {
      * @param {number} [options.size=4096] - Target chunk size in bytes
      * @param {string} [options.delimiters="\n.?"] - Delimiter characters
      * @param {string | Uint8Array} [options.pattern] - Multi-byte pattern to split on
+     * @param {string[]} [options.patterns] - Multi-byte patterns, composable with delimiters
      * @param {boolean} [options.prefix=false] - Put delimiter/pattern at start of next chunk
      * @param {boolean} [options.consecutive=false] - Split at START of consecutive runs
      * @param {boolean} [options.forwardFallback=false] - Search forward if no pattern in backward window
@@ -282,13 +284,13 @@ export class Chunker {
     constructor(text, options = {}) {
         this._isString = typeof text === 'string';
         const bytes = toBytes(text);
-        const { size, delimiters, pattern, prefix, consecutive, forwardFallback } = options;
+        const { size, delimiters, pattern, patterns, prefix, consecutive, forwardFallback } = options;
 
         if (pattern) {
             const patternBytes = toBytes(pattern);
             this._chunker = WasmChunker.with_pattern(bytes, size ?? 4096, patternBytes, prefix, consecutive, forwardFallback);
         } else {
-            this._chunker = new WasmChunker(bytes, size, delimiters, prefix);
+            this._chunker = new WasmChunker(bytes, size, delimiters, prefix, consecutive, forwardFallback, patterns);
         }
     }
 

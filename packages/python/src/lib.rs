@@ -55,12 +55,13 @@ pub struct Chunker {
 #[pymethods]
 impl Chunker {
     #[new]
-    #[pyo3(signature = (text, size=DEFAULT_TARGET_SIZE, delimiters=None, pattern=None, prefix=false, consecutive=false, forward_fallback=false))]
+    #[pyo3(signature = (text, size=DEFAULT_TARGET_SIZE, delimiters=None, pattern=None, patterns=None, prefix=false, consecutive=false, forward_fallback=false))]
     fn new(
         text: &Bound<'_, PyAny>,
         size: usize,
         delimiters: Option<&Bound<'_, PyAny>>,
         pattern: Option<&Bound<'_, PyAny>>,
+        patterns: Option<Vec<Bound<'_, PyAny>>>,
         prefix: bool,
         consecutive: bool,
         forward_fallback: bool,
@@ -69,7 +70,7 @@ impl Chunker {
 
         let mut inner = OwnedChunker::new(text_bytes).size(size);
 
-        // Pattern takes precedence over delimiters if both specified
+        // Pattern (singular) takes precedence over delimiters if both specified
         if let Some(p) = pattern {
             let pattern_bytes = extract_bytes(p)?;
             inner = inner.pattern(pattern_bytes);
@@ -79,6 +80,25 @@ impl Chunker {
                 None => DEFAULT_DELIMITERS.to_vec(),
             };
             inner = inner.delimiters(delims);
+        }
+
+        // Patterns (plural) is composable with delimiters — applied after
+        if let Some(pats) = patterns {
+            let pattern_strings: Vec<String> = pats
+                .iter()
+                .map(|p| {
+                    extract_bytes(p).and_then(|b| {
+                        String::from_utf8(b).map_err(|e| {
+                            PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                                "patterns must be valid UTF-8: {}",
+                                e
+                            ))
+                        })
+                    })
+                })
+                .collect::<PyResult<Vec<String>>>()?;
+            let pattern_refs: Vec<&str> = pattern_strings.iter().map(|s| s.as_str()).collect();
+            inner = inner.patterns(&pattern_refs);
         }
 
         if prefix {
@@ -129,12 +149,13 @@ impl Chunker {
 ///     >>> offsets = chunk_offsets(text, size=15, pattern="▁", prefix=True)
 ///     >>> chunks = [text[start:end] for start, end in offsets]
 #[pyfunction]
-#[pyo3(signature = (text, size=DEFAULT_TARGET_SIZE, delimiters=None, pattern=None, prefix=false, consecutive=false, forward_fallback=false))]
+#[pyo3(signature = (text, size=DEFAULT_TARGET_SIZE, delimiters=None, pattern=None, patterns=None, prefix=false, consecutive=false, forward_fallback=false))]
 fn chunk_offsets(
     text: &Bound<'_, PyAny>,
     size: usize,
     delimiters: Option<&Bound<'_, PyAny>>,
     pattern: Option<&Bound<'_, PyAny>>,
+    patterns: Option<Vec<Bound<'_, PyAny>>>,
     prefix: bool,
     consecutive: bool,
     forward_fallback: bool,
@@ -143,7 +164,7 @@ fn chunk_offsets(
 
     let mut chunker = OwnedChunker::new(text_bytes).size(size);
 
-    // Pattern takes precedence over delimiters if both specified
+    // Pattern (singular) takes precedence over delimiters if both specified
     if let Some(p) = pattern {
         let pattern_bytes = extract_bytes(p)?;
         chunker = chunker.pattern(pattern_bytes);
@@ -153,6 +174,25 @@ fn chunk_offsets(
             None => DEFAULT_DELIMITERS.to_vec(),
         };
         chunker = chunker.delimiters(delims);
+    }
+
+    // Patterns (plural) is composable with delimiters — applied after
+    if let Some(pats) = patterns {
+        let pattern_strings: Vec<String> = pats
+            .iter()
+            .map(|p| {
+                extract_bytes(p).and_then(|b| {
+                    String::from_utf8(b).map_err(|e| {
+                        PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                            "patterns must be valid UTF-8: {}",
+                            e
+                        ))
+                    })
+                })
+            })
+            .collect::<PyResult<Vec<String>>>()?;
+        let pattern_refs: Vec<&str> = pattern_strings.iter().map(|s| s.as_str()).collect();
+        chunker = chunker.patterns(&pattern_refs);
     }
 
     if prefix {

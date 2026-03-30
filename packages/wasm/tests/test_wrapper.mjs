@@ -195,3 +195,41 @@ test('wrapper: split preserves all bytes', () => {
         assert.strictEqual(offsets[i - 1][1], offsets[i][0]);
     }
 });
+
+// ============ Multi-pattern (.patterns) tests ============
+
+test('wrapper: chunk with patterns', () => {
+    const text = "Hello. World\u3002Test";
+    const results = [...chunk(text, { size: 12, delimiters: ".", patterns: ["\u3002"] })];
+    assert.ok(results.length >= 2);
+    // All results should be strings since input is string
+    for (const r of results) {
+        assert.strictEqual(typeof r, 'string');
+    }
+});
+
+test('wrapper: chunk_offsets with patterns', () => {
+    const text = "Hello\u3002World\u3002Test";
+    const offsets = chunk_offsets(text, { size: 15, patterns: ["\u3002"] });
+    assert.ok(offsets.length >= 2);
+    // Verify total bytes preserved
+    const bytes = encoder.encode(text);
+    const total = offsets.reduce((sum, [start, end]) => sum + (end - start), 0);
+    assert.strictEqual(total, bytes.length);
+});
+
+test('wrapper: Chunker with patterns', () => {
+    const chunker = new Chunker("Hello\u3002World\u3002Test", { size: 15, patterns: ["\u3002"] });
+    const results = [...chunker];
+    assert.ok(results.length >= 2);
+    chunker.free();
+});
+
+test('wrapper: patterns composable with delimiters', () => {
+    const text = "Hello. World\u3002Test";
+    const offsets = chunk_offsets(text, { size: 12, delimiters: ".", patterns: ["\u3002"] });
+    assert.ok(offsets.length >= 2);
+    const bytes = encoder.encode(text);
+    const total = offsets.reduce((sum, [start, end]) => sum + (end - start), 0);
+    assert.strictEqual(total, bytes.length);
+});

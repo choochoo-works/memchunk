@@ -2,6 +2,7 @@ use chunk::{
     DEFAULT_DELIMITERS, DEFAULT_TARGET_SIZE, IncludeDelim, OwnedChunker,
     find_merge_indices as rust_find_merge_indices, split_at_delimiters,
 };
+use js_sys::Array;
 use wasm_bindgen::prelude::*;
 
 /// Chunker splits text at delimiter boundaries.
@@ -44,6 +45,7 @@ impl Chunker {
         prefix: Option<bool>,
         consecutive: Option<bool>,
         forward_fallback: Option<bool>,
+        patterns: Option<Array>,
     ) -> Chunker {
         let target_size = size.unwrap_or(DEFAULT_TARGET_SIZE);
         let delims = delimiters
@@ -52,6 +54,12 @@ impl Chunker {
         let mut inner = OwnedChunker::new(text.to_vec())
             .size(target_size)
             .delimiters(delims);
+        if let Some(pats) = patterns {
+            let pattern_strings: Vec<String> =
+                pats.iter().filter_map(|val| val.as_string()).collect();
+            let pattern_refs: Vec<&str> = pattern_strings.iter().map(|s| s.as_str()).collect();
+            inner = inner.patterns(&pattern_refs);
+        }
         if prefix.unwrap_or(false) {
             inner = inner.prefix();
         }
@@ -153,6 +161,7 @@ pub fn chunk_offsets(
     prefix: Option<bool>,
     consecutive: Option<bool>,
     forward_fallback: Option<bool>,
+    patterns: Option<Array>,
 ) -> Vec<usize> {
     let target_size = size.unwrap_or(DEFAULT_TARGET_SIZE);
     let delims = delimiters
@@ -161,6 +170,11 @@ pub fn chunk_offsets(
     let mut chunker = OwnedChunker::new(text.to_vec())
         .size(target_size)
         .delimiters(delims);
+    if let Some(pats) = patterns {
+        let pattern_strings: Vec<String> = pats.iter().filter_map(|val| val.as_string()).collect();
+        let pattern_refs: Vec<&str> = pattern_strings.iter().map(|s| s.as_str()).collect();
+        chunker = chunker.patterns(&pattern_refs);
+    }
     if prefix.unwrap_or(false) {
         chunker = chunker.prefix();
     }
